@@ -117,15 +117,36 @@ func (controller *OIDCController) authorize(c *gin.Context) {
 
 	var req service.AuthorizeRequest
 
-	err := c.ShouldBindWith(&req, binding.Query)
+	reqQueries := c.Request.URL.Query()
 
-	if err != nil {
-		controller.authorizeError(c, authorizeErrorParams{
-			err:          err,
-			reason:       "Failed to bind JSON",
-			reasonPublic: "The client provided an invalid authorization request",
-		})
-		return
+	if reqQueries.Get("request") != "" {
+		requestObject, err := controller.oidc.DecodeAuthorizeJWT(reqQueries.Get("request"))
+
+		if err != nil {
+			controller.authorizeError(c, authorizeErrorParams{
+				err:          err,
+				reason:       "Failed to decode request object",
+				reasonPublic: "The client provided an invalid request object",
+			})
+			return
+		}
+
+		req = *requestObject
+	} else {
+		var queryReq service.AuthorizeRequest
+
+		err := c.ShouldBindWith(&queryReq, binding.Query)
+
+		if err != nil {
+			controller.authorizeError(c, authorizeErrorParams{
+				err:          err,
+				reason:       "Failed to bind query parameters",
+				reasonPublic: "The client provided invalid query parameters",
+			})
+			return
+		}
+
+		req = queryReq
 	}
 
 	client, ok := controller.oidc.GetClient(req.ClientID)
@@ -139,9 +160,7 @@ func (controller *OIDCController) authorize(c *gin.Context) {
 		return
 	}
 
-	// TODO: handle request= parameter with JWTs
-
-	err = controller.oidc.ValidateAuthorizeParams(req)
+	err := controller.oidc.ValidateAuthorizeParams(req)
 
 	if err != nil {
 		controller.log.App.Warn().Err(err).Msg("Failed to validate authorize params")

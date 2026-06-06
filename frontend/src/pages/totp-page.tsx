@@ -42,7 +42,11 @@ export const TotpPage = () => {
       });
 
       redirectTimer.current = window.setTimeout(() => {
-        window.location.replace(`/continue${compiledParams}`);
+        if (screenParams.login_for === "oidc") {
+          window.location.replace(`/oidc/authorize${compiledParams}`);
+        } else {
+          window.location.replace(`/continue${compiledParams}`);
+        }
       }, 500);
     },
     onError: () => {

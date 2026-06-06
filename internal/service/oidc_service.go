@@ -20,6 +20,7 @@ import (
 	"slices"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/steveiliop56/ding"
 	"github.com/tinyauthapp/tinyauth/internal/model"
 	"github.com/tinyauthapp/tinyauth/internal/repository"
@@ -106,14 +107,15 @@ type TokenResponse struct {
 }
 
 type AuthorizeRequest struct {
-	Scope               string `form:"scope" binding:"required"`
-	ResponseType        string `form:"response_type" binding:"required"`
-	ClientID            string `form:"client_id" binding:"required"`
-	RedirectURI         string `form:"redirect_uri" binding:"required"`
-	State               string `form:"state"`
-	Nonce               string `form:"nonce"`
-	CodeChallenge       string `form:"code_challenge"`
-	CodeChallengeMethod string `form:"code_challenge_method"`
+	jwt.Claims
+	Scope               string `form:"scope" binding:"required" json:"scope"`
+	ResponseType        string `form:"response_type" binding:"required" json:"response_type"`
+	ClientID            string `form:"client_id" binding:"required" json:"client_id"`
+	RedirectURI         string `form:"redirect_uri" binding:"required" json:"redirect_uri"`
+	State               string `form:"state" json:"state"`
+	Nonce               string `form:"nonce" json:"nonce"`
+	CodeChallenge       string `form:"code_challenge" json:"code_challenge"`
+	CodeChallengeMethod string `form:"code_challenge_method" json:"code_challenge_method"`
 }
 
 type AuthorizeCodeEntry struct {
@@ -882,4 +884,23 @@ func (service *OIDCService) GetAuthorizeRequestByTicket(ticket string) (*Authori
 
 func (service *OIDCService) DeleteAuthorizeRequestTicket(ticket string) {
 	service.caches.authorize.Delete(ticket)
+}
+
+// TODO: support signed request objects in the future
+func (service *OIDCService) DecodeAuthorizeJWT(tokenString string) (*AuthorizeRequest, error) {
+	var req AuthorizeRequest
+
+	token, _, err := jwt.NewParser().ParseUnverified(tokenString, &req)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse authorize request jwt: %w", err)
+	}
+
+	claims, ok := token.Claims.(*AuthorizeRequest)
+
+	if !ok {
+		return nil, errors.New("failed to parse claims from authorize request jwt")
+	}
+
+	return claims, nil
 }
